@@ -2,70 +2,91 @@ import socket
 import threading
 
 class Server:
-    # Header size for messages
     HEADER = 64
-
-    # Port to listen on (non-privileged ports are > 1023)
     PORT = 9999
-
-    # Get the local machine's IP address
     SERVER = socket.gethostbyname(socket.gethostname())
-
-    # Address to listen on (server IP and port)
     ADDR = (SERVER, PORT)
-
-    # Encoding format for messages
     FORMAT = 'utf-8'
-
-    # Disconnect message to close the connection
     DISCONNECT_MESSAGE = "!DISCONNECT"
 
+    # Keep track of active connections
+    _active_connections = [] # Use a list to store connection objects for potential future use (e.g., broadcasting)
+    _lock = threading.Lock() # To protect access to _active_connections
+
     def __init__(self):
-        # Create a TCP/IP socket
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Bind the socket to the address and port   
         self.server.bind(self.ADDR)
-
         print(f"[S][SERVER INITIALIZED] Server bound to {self.ADDR}")
 
     def start(self):
-        """Start listening for incoming connections."""
-        self.server.listen()  # Start listening for connections
+        """Starts the server and listens for incoming connections."""
+
+        self.server.listen()
         print(f"[S][SERVER LISTENING] Listening on {self.SERVER}:{self.PORT}")
 
         while True:
-            # Wait for a connection
-            connection, address = self.server.accept()
-            print(f"[S][NEW CONNECTION] {address} connected")
+            try:
+                connection, address = self.server.accept()
 
-            # Create a new thread for each client connection
-            thread = threading.Thread(target=self.handle_client, args=(connection, address))
-            thread.start()
+                with self._lock:
+                    self._active_connections.append((connection, address)) # Store connection for potential management
+                
+                print(f"[S][NEW CONNECTION] {address} connected")
 
-            # Print the number of active connections
-            print(f"[S][ACTIVE CONNECTIONS] {threading.active_count() - 1}")
+                thread = threading.Thread(target=self.handle_client, args=(connection, address))
+                thread.daemon = True # Make client threads daemon so they don't block main exit
+                thread.start()
+
+                print(f"[S][ACTIVE CONNECTIONS] {threading.active_count() - 1}") # -1 for the server's main thread
+
+            except Exception as e:
+                # Handle cases where server.accept() might fail
+                print(f"[S][SERVER ACCEPT ERROR] {e}")
+
+                break
 
     def handle_client(self, connection, address):
-        """Handle communication with a connected client."""
-        connected = True  # Flag to indicate the connection is active
+        """Handles communication with a connected client."""
+        connected = True
 
         while connected:
             try:
-                # Receive the message length header
-                message_length = connection.recv(self.HEADER).decode(self.FORMAT)
+                message_length_header = connection.recv(self.HEADER)
+                # If recv returns 0 bytes, the client has closed its side of the connection gracefully
 
-                if message_length:
-                    # Receive the actual message
-                    message = connection.recv(int(message_length)).decode(self.FORMAT)
+                if not message_length_header:
+                    break # Exit loop, client disconnected
 
-                    if message == self.DISCONNECT_MESSAGE:
-                        connected = False  # Disconnect if the message is the disconnect signal
+                message_length = int(message_length_header.decode(self.FORMAT).strip()) # .strip() removes padding
+                message = connection.recv(message_length).decode(self.FORMAT)
 
-                    print(f"[S][{address}] {message}")
-            except:
-                connected = False  # Handle any errors gracefully
+                if message == self.DISCONNECT_MESSAGE:
+                    connected = False
+                
+                print(f"[S][{address}] {message}")
 
-        # Close the connection when done
+                # send a response back to the client (Testing purpose)
+                # response = "Message received!"
+                # response_encoded = response.encode(self.FORMAT)
+                # response_length = str(len(response_encoded)).encode(self.FORMAT)
+                # response_length += b' ' * (self.HEADER - len(response_length))
+                # connection.send(response_length)
+                # connection.send(response_encoded)
+
+            except ConnectionResetError:
+                # Client forcefully closes the connection
+                print(f"[S][FORCED DISCONNECT] {address} forcefully disconnected.")
+                connected = False
+            except Exception as e:
+                # Catch potential errors
+                print(f"[S][ERROR HANDLING {address}] {e}")
+                connected = False # Disconnect client on any unhandled error
+
         connection.close()
         print(f"[S][DISCONNECTED] {address} disconnected")
+        
+        with self._lock:
+            if (connection, address) in self._active_connections:
+                self._active_connections.remove((connection, address))
+
+        print(f"[S][ACTIVE CONNECTIONS] {threading.active_count() - 2}")
