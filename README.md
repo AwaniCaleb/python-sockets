@@ -95,8 +95,20 @@ To run an example:
     Follow any specific instructions provided within the example files themselves.
 
 ## Repository Structure
-
-(See the detailed structure diagram at the top of this README.)
+.
+├── .gitignore
+├── LICENSE
+├── README.md
+├── examples/
+│   ├── 01_example/
+│   │   ├── client.py
+│   │   └── server.py
+│   └── ...
+├── notes/
+│   ├── example_note.md
+│   └── ...
+└── utils/
+    └── common.py
 
 ## Contributing (Optional)
 
