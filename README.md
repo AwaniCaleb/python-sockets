@@ -95,6 +95,7 @@ To run an example:
     Follow any specific instructions provided within the example files themselves.
 
 ## Repository Structure
+```bash
 .
 ├── .gitignore
 ├── LICENSE
@@ -109,6 +110,7 @@ To run an example:
 │   └── ...
 └── utils/
     └── common.py
+```
 
 ## Contributing (Optional)
 
