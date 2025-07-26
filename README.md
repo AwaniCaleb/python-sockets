@@ -81,7 +81,7 @@ To run an example:
 
 1.  Navigate to the specific example directory:
     ```bash
-    cd examples/01_basic_tcp_or_smth/
+    cd examples/core/
     ```
 2.  Open two separate terminal windows.
 3.  In the first terminal, start the server:
@@ -101,12 +101,12 @@ To run an example:
 ├── LICENSE
 ├── README.md
 ├── examples/
-│   ├── 01_example/
-│   │   ├── client.py
-│   │   └── server.py
-│   └── ...
+│   └── core/
+│       ├── client.py
+│       ├── main.py
+│       └── server.py
 ├── notes/
-│   ├── example_note.md
+│   ├── notes.md
 │   └── ...
 └── utils/
     └── common.py
