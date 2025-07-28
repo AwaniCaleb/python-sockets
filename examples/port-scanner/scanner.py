@@ -61,21 +61,29 @@ class PortScanner:
     def scan_range(self):
         """
         Scans a range of ports from `self.start_port` to `self.end_port` (inclusive)
-        on the target IP address.
+        on the target IP address, using threads for concurrency.
         """
         # Create an iterable range of port numbers.
         # The range function's end is exclusive, so we add 1 to include self.end_port.
-        port_range = range(self.start_port, self.end_port + 1) # Added + 1 to include end_port
+        port_range = range(self.start_port, self.end_port + 1)
 
         print(f"\n[*] Starting scan on {self.target_ip} from port {self.start_port} to {self.end_port}...")
 
         try:
             # Iterate through each port in the defined range.
             for port in port_range:
-                # Call the scan_port method for each individual port.
-                self.scan_port(port)
+                # Create a new thread for each port scan.
+                # The 'target' is the function to be executed by the thread (self.scan_port).
+                # The 'args' is a tuple of arguments to pass to the target function (the current 'port').
+                scan_thread = threading.Thread(target=self.scan_port, args=(port,))
+                
+                # Start the thread, which will execute self.scan_port concurrently.
+                scan_thread.start()
+
         except Exception as e:
-            # Catch any unexpected errors that might occur during the iteration or individual scans.
+            # Catch any unexpected errors that might occur during the thread creation or iteration.
             print(f"Something went wrong during the port range scan: {e}")
 
+        # This line will likely print *before* all threads have finished their scans
+        # because the main thread doesn't wait for the scan_threads to complete.
         print(f"[*] Scan on {self.target_ip} completed.")
