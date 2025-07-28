@@ -3,12 +3,11 @@ import threading
 
 
 class PortScanner:
-    def __init__(self, target_ip: str = "127.0.0.1"):
+    def __init__(self, target_host: str = "localhost"):
         """
-        Initializes the PortScanner with a target IP address.
-        :param target_ip: The IP address of the host to scan. Defaults to localhost (127.0.0.1).
+        Initializes the PortScanner with a target host.
         """
-        self.target_ip = target_ip
+        self.target_ip = self.resolve_host(target_host)  # Resolve the hostname to an IP address.
 
         # Define the default range of ports to scan.
         # These can be modified when the PortScanner object is created or before scanning.
@@ -17,6 +16,18 @@ class PortScanner:
 
         self.max_connections = 100  # Maximum number of concurrent connections (threads) to use during scanning.
         self.scan_semaphore = threading.Semaphore(self.max_connections) # This semaphore limits the number of concurrent threads to avoid overwhelming the system or network.
+    
+    def resolve_host(self, host: str) -> str:
+        """
+        Resolves a hostname to an IP address.
+        """
+        try:
+            # Use socket.gethostbyname() to resolve the hostname to an IP address.
+            ip_address = socket.gethostbyname(host)
+            return ip_address
+        except socket.gaierror:
+            print(f"Could not resolve hostname {host}. Exiting.")
+            return ""
 
     def scan_port(self, port: int) -> bool:
         """
