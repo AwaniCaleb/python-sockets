@@ -4,7 +4,7 @@ import threading
 class Server:
     HEADER = 64
     PORT = 9999
-    SERVER = socket.gethostbyname(socket.gethostname())
+    SERVER = "0.0.0.0" or socket.gethostbyname(socket.gethostname())
     ADDR = (SERVER, PORT)
     FORMAT = 'utf-8'
     DISCONNECT_MESSAGE = "!DISCONNECT"

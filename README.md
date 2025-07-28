@@ -100,6 +100,8 @@ To run an example:
 ├── .gitignore
 ├── LICENSE
 ├── README.md
+├── venv/
+├── .env
 ├── examples/
 │   └── core/
 │       ├── client.py

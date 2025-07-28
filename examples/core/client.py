@@ -1,12 +1,13 @@
-import socket, random, threading
+import socket, random, threading, os
 
 
 class Client:
     HEADER = 64
-    PORT = 9999
+    PORT =  os.environ.get("NGROK_PUBLIC_PORT")
 
     # Use the local machine's IP address for the server by default
-    SERVER = socket.gethostbyname(socket.gethostname())
+    # SERVER = socket.gethostbyname(socket.gethostname())
+    SERVER = os.environ.get("NGROK_PUBLIC_HOSTNAME")
 
     FORMAT = 'utf-8'
     DISCONNECT_MESSAGE = "!DISCONNECT"
