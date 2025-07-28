@@ -28,6 +28,11 @@ def main():
     # Create an instance of PortScanner with the target host
     scanner = PortScanner(args.target)
 
+    if not scanner.target_ip:
+        # If target_ip is an empty string, it means resolution failed
+        print("[!] Exiting: Target host could not be resolved.")
+        return # Exit
+
     # Set the port range and max connections from the parsed arguments
     scanner.start_port = args.start_port
     scanner.end_port = args.end_port
