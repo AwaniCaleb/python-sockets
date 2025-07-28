@@ -15,6 +15,9 @@ class PortScanner:
         self.start_port = 1
         self.end_port = 1024 # Common ports often fall within this range
 
+        self.max_connections = 100  # Maximum number of concurrent connections (threads) to use during scanning.
+        self.scan_semaphore = threading.Semaphore(self.max_connections) # This semaphore limits the number of concurrent threads to avoid overwhelming the system or network.
+
     def scan_port(self, port: int) -> bool:
         """
         Scans a single port on the target IP address.
@@ -22,6 +25,10 @@ class PortScanner:
         :param port: The port number to scan.
         :return: True if the port is open, False otherwise.
         """
+
+        # Acquire a semaphore to limit the number of concurrent scans.
+        self.scan_semaphore.acquire()
+
         # Create a new socket for each connection attempt.
         # It's crucial to create a new socket because a closed socket cannot be reused.
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -58,6 +65,9 @@ class PortScanner:
             # This releases the system resources used by the socket.
             s.close()
 
+            # Release the semaphore to allow another thread to proceed with its scan.
+            self.scan_semaphore.release()
+
     def scan_range(self):
         """
         Scans a range of ports from `self.start_port` to `self.end_port` (inclusive)
@@ -69,9 +79,15 @@ class PortScanner:
 
         print(f"\n[*] Starting scan on {self.target_ip} from port {self.start_port} to {self.end_port}...")
 
+        # Initialize a list to hold the thread objects.
+        all_threads:list[threading.Thread] = []
+
         try:
             # Iterate through each port in the defined range.
             for port in port_range:
+                # Acquire the semaphore before starting a new thread to ensure we don't exceed max_connections.
+                # self.scan_semaphore.acquire() # Already called in scan_port method
+
                 # Create a new thread for each port scan.
                 # The 'target' is the function to be executed by the thread (self.scan_port).
                 # The 'args' is a tuple of arguments to pass to the target function (the current 'port').
@@ -79,6 +95,12 @@ class PortScanner:
                 
                 # Start the thread, which will execute self.scan_port concurrently.
                 scan_thread.start()
+
+                # Append the thread to the list of threads for tracking.
+                all_threads.append(scan_thread)
+            
+            for thread in all_threads:
+                thread.join()
 
         except Exception as e:
             # Catch any unexpected errors that might occur during the thread creation or iteration.
