@@ -7,15 +7,17 @@ class PortScanner:
         """
         Initializes the PortScanner with a target host.
         """
-        self.target_ip = self.resolve_host(target_host)  # Resolve the hostname to an IP address.
+        self.target_ip = self.resolve_host(
+            target_host
+        )  # Resolve the hostname to an IP address.
 
         # Define the default range of ports to scan.
         # These can be modified when the PortScanner object is created or before scanning.
         self.start_port = 1
-        self.end_port = 1024 # Common ports often fall within this range
+        self.end_port = 1024  # Common ports often fall within this range
 
         # List to hold open ports found during the scan.
-        self.open_ports:list[int] = []
+        self.open_ports: list[dict] = []
 
         # Maximum number of concurrent connections (threads) to use during scanning.
         self.max_connections = 100
@@ -25,7 +27,7 @@ class PortScanner:
 
         # A lock to ensure thread-safe access to the open_ports list.
         self.open_ports_lock = threading.Lock()
-    
+
     def resolve_host(self, host: str) -> str:
         """
         Resolves a hostname to an IP address.
@@ -38,70 +40,73 @@ class PortScanner:
             print(f"Could not resolve hostname {host}. Exiting.")
             return ""
 
-    def scan_port(self, port: int) -> bool:
+    def scan_port(self, port: int) -> dict:
         """
-        Scans a single port on the target IP address.
-        Attempts to establish a TCP connection to determine if the port is open.
-        :param port: The port number to scan.
-        :return: True if the port is open, False otherwise.
+        Scans a single port on the target IP address, attempts to grab a banner if open.
         """
 
-        # Acquire a semaphore to limit the number of concurrent scans.
         self.scan_semaphore.acquire()
-
-        # Create a new socket for each connection attempt.
-        # It's crucial to create a new socket because a closed socket cannot be reused.
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)  # Timeout for connection attempt
 
-        # Set a timeout for the connection attempt.
-        # This prevents the scanner from hanging indefinitely on filtered or non-responsive ports.
-        s.settimeout(1) # 1 second timeout
+        output = {
+            "state": False,
+            "port": port,
+            "error": None,
+            "data": None,
+        }  # Initialize output
 
         try:
-            # Attempt to connect to the target IP and port.
-            # connect_ex() returns 0 on success (connection established),
-            # or a non-zero error code if the connection fails.
             result = s.connect_ex((self.target_ip, port))
 
-            output = {"state": False, "port": port, "error": None}
-
             if result == 0:
-                # If result is 0, the connection was successful, meaning the port is open.
-                
+                # Port is open
+                print("Open port found:", port)
+                output["state"] = True
+
+                banner = "No banner received"  # Default banner if none found or error
+
+                # Set a shorter timeout specifically for the recv operation
+                s.settimeout(0.5)
+
+                try:
+                    port_data_bytes = s.recv(1024)
+                    # Decode the received data dnd remove leading/trailing whitespace/newlines
+                    banner = port_data_bytes.decode("utf-8", errors="ignore").strip()
+                    if not banner:  # If decoding results in an empty string
+                        banner = "No banner received"
+                except socket.timeout:
+                    # Specific handler for recv timeout
+                    banner = "No banner received (timeout)"
+                except socket.error as e:
+                    # General socket error during recv
+                    banner = f"Error receiving banner: {e}"
+
+                output["data"] = banner
+
                 # Acquire the lock to safely modify the open_ports list.
                 self.open_ports_lock.acquire()
 
                 try:
-                    # Append the open port to the list of open ports.
-                    self.open_ports.append(port)
-                except Exception as e:
-                    # Catch any exceptions that occur while modifying the list.
-                    print(f"Error while adding port {port} to open_ports: {e}")
+                    # Use 'banner' key for clarity
+                    self.open_ports.append({"port": port, "banner": banner})
                 finally:
                     # Ensure the lock is released after modifying the list.
                     self.open_ports_lock.release()
-                
-                # Update the output dictionary to indicate the port is open.
-                output.update({"state": True, "port": port})
+
             else:
-                # If result is non-zero, the connection failed, meaning the port is closed or filtered.
-                # The specific error code can provide more details (e.g., 10061 for Connection Refused, 10035 for operation would block/timeout).
-                output.update({"state": False, "port": port, "error": result})
+                # Port is closed or filtered
+                output["error"] = result
+
         except socket.gaierror:
-            # Handles cases where the hostname (IP address) cannot be resolved.
-            output.update({"state": False, "port": port, "error": "Hostname resolution failed"})
+            # Hostname resolution failed during connect_ex or earlier
+            output["error"] = "Hostname resolution failed"
         except socket.error as e:
-            # Catches other socket-related errors (e.g., network unreachable).
-            output.update({"state": False, "port": port, "error": str(e)})
+            # Other socket-related errors during connect_ex
+            output["error"] = str(e)
         finally:
-            # Ensures the socket is always closed, regardless of whether an error occurred.
-            # This releases the system resources used by the socket.
             s.close()
-
-            # Release the semaphore to allow another thread to proceed with its scan.
             self.scan_semaphore.release()
-
-            # Return the result of the port scan (True if open, False if closed).
             return output
 
     def scan_range(self):
@@ -113,10 +118,12 @@ class PortScanner:
         # The range function's end is exclusive, so we add 1 to include self.end_port.
         port_range = range(self.start_port, self.end_port + 1)
 
-        print(f"\n[*] Starting scan on {self.target_ip} from port {self.start_port} to {self.end_port}...")
+        print(
+            f"\n[*] Starting scan on {self.target_ip} from port {self.start_port} to {self.end_port}..."
+        )
 
         # Initialize a list to hold the thread objects.
-        all_threads:list[threading.Thread] = []
+        all_threads: list[threading.Thread] = []
 
         try:
             # Iterate through each port in the defined range.
@@ -128,13 +135,13 @@ class PortScanner:
                 # The 'target' is the function to be executed by the thread (self.scan_port).
                 # The 'args' is a tuple of arguments to pass to the target function (the current 'port').
                 scan_thread = threading.Thread(target=self.scan_port, args=(port,))
-                
+
                 # Start the thread, which will execute self.scan_port concurrently.
                 scan_thread.start()
 
                 # Append the thread to the list of threads for tracking.
                 all_threads.append(scan_thread)
-            
+
             for thread in all_threads:
                 thread.join()
 
@@ -142,14 +149,17 @@ class PortScanner:
             # Catch any unexpected errors that might occur during the thread creation or iteration.
             print(f"Something went wrong during the port range scan: {e}")
 
-        self.open_ports.sort()  # Sort the list of open ports for better readability.
+        # Sort the list of open ports by their port number for better readability.
+        self.open_ports.sort(key=lambda x: x['port'])
 
         # After all threads have completed, print the results.
-        print(f"\n[*] Scan complete on {self.target_ip}. Found {len(self.open_ports)} open ports:")
+        print(
+            f"\n[*] Scan complete on {self.target_ip}. Found {len(self.open_ports)} open ports:"
+        )
 
         # If there are open ports, print each one.
         if self.open_ports:
-            for port in self.open_ports:
-                print(f"Port {port} is open.")
+            for open_port in self.open_ports:
+                print(f"Port {open_port['port']} is open. Banner: {open_port['banner']}") # Changed 'data' to 'banner'
         else:
             print(f"No open ports found from {self.start_port} to {self.end_port}.")
