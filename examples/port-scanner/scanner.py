@@ -147,6 +147,7 @@ class PortScanner:
         # After all threads have completed, print the results.
         print(f"\n[*] Scan complete on {self.target_ip}. Found {len(self.open_ports)} open ports:")
 
+        # If there are open ports, print each one.
         if self.open_ports:
             for port in self.open_ports:
                 print(f"Port {port} is open.")

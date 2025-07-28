@@ -1,9 +1,40 @@
+import argparse
+import threading
+
 from scanner import PortScanner
 
 
 def main():
-    # Create an instance of PortScanner
-    scanner = PortScanner()
+    """Main function to run the port scanner"""
+
+    # Create an argument parser
+    parser = argparse.ArgumentParser(description="Port Scanner Tool")
+
+    # Add an argument for the target host
+    parser.add_argument("-t", "--target", type=str, default="localhost", help="Target host to scan (default: localhost)")
+    
+    # Add an argument for the start port
+    parser.add_argument("-sp", "--start-port", type=int, default=1, help="Start port for scanning (default: 1)")
+
+    # Add an argument for the end port
+    parser.add_argument("-ep", "--end-port", type=int, default=1024, help="End port for scanning (default: 1024)")
+
+    # Add an argument for the max connections
+    parser.add_argument("-mc", "--max-connections", type=int, default=100, help="The maximum number of concurrent connections  (default: 100)")
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Create an instance of PortScanner with the target host
+    scanner = PortScanner(args.target)
+
+    # Set the port range and max connections from the parsed arguments
+    scanner.start_port = args.start_port
+    scanner.end_port = args.end_port
+    scanner.max_connections = args.max_connections
+    
+    # Crucial: Re-initialize the semaphore with the new max_connections value
+    scanner.scan_semaphore = threading.Semaphore(scanner.max_connections)
 
     # Scan a range of ports
     scanner.scan_range()
