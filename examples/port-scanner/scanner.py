@@ -1,16 +1,17 @@
-import socket
-import threading
+import socket, threading, os
+
+from datetime import datetime
 
 
 class PortScanner:
-    def __init__(self, target_host: str = "localhost", verbose:bool = False):
+    def __init__(self, target_host: str = "localhost", verbose:bool = False, output_file_path: str = None):
         """
         Initializes the PortScanner with a target host.
         """
+        self.target_host = target_host
+
         # Resolve the hostname to an IP address.
-        self.target_ip = self.resolve_host(
-            target_host
-        )
+        self.target_ip = self.resolve_host(self.target_host)
 
         # Define the default range of ports to scan.
         # These can be modified when the PortScanner object is created or before scanning.
@@ -19,6 +20,9 @@ class PortScanner:
 
         # Verbose mode determines whether to print detailed output during the scan.
         self.verbose = verbose
+
+        # File path for output; None if not specified
+        self.output_file_path = output_file_path 
 
         # List to hold open ports found during the scan.
         self.open_ports: list[dict] = []
@@ -63,9 +67,12 @@ class PortScanner:
         try:
             result = s.connect_ex((self.target_ip, port))
 
+            # If the port is open...
             if result == 0:
-                # Port is open
-                print("Open port found:", port)
+                # Print port if verbose is enabled
+                if self.verbose:
+                    print("Open port found:", port)
+                
                 output["state"] = True
 
                 banner = "No banner received"  # Default banner if none found or error
@@ -98,8 +105,8 @@ class PortScanner:
                     # Ensure the lock is released after modifying the list.
                     self.open_ports_lock.release()
 
+            # Port is closed or filtered
             else:
-                # Port is closed or filtered
                 output["error"] = result
 
                 # Print port if verbose is enabled
@@ -160,14 +167,83 @@ class PortScanner:
         # Sort the list of open ports by their port number for better readability.
         self.open_ports.sort(key=lambda x: x['port'])
 
-        # After all threads have completed, print the results.
-        print(
-            f"\n[*] Scan complete on {self.target_ip}. Found {len(self.open_ports)} open ports:"
-        )
+        # 
+        output_lines = []
+        output_lines.append(f"\n[*] Scan complete on {self.target_ip}. Found {len(self.open_ports)} open ports:")
 
-        # If there are open ports, print each one.
         if self.open_ports:
             for open_port in self.open_ports:
-                print(f"Port {open_port['port']} is open. Banner: {open_port['banner']}") # Changed 'data' to 'banner'
+                # Format the output line for each open port found.
+                line = f"Port {open_port['port']} is open. Banner: {open_port['banner']}"
+
+                # Print the line if verbose mode is enabled.
+                if self.verbose:
+                    print(line)
+
+                # Append the line to the output lines list for later writing to file.
+                output_lines.append(line)
         else:
-            print(f"No open ports found from {self.start_port} to {self.end_port}.")
+            # If no open ports were found, print a message indicating this.
+            line = f"No open ports found from {self.start_port} to {self.end_port}."
+
+            # Print the line if verbose mode is enabled.
+            if self.verbose:
+                print(line)
+
+            # Append the line to the output lines list for later writing to file.
+            output_lines.append(line)
+
+        # Write to file if output_file_path is provided
+        if self.output_file_path:
+            # If the user provided an output file path, write the results to that file.
+            make_file = self.output_file({"host": self.target_host, "content": output_lines})
+
+            # If the file was not created successfully, print an error message.
+            if not make_file:
+                print("[!] Error writing results to file. Exiting scan.")
+
+    def output_file(self, data: dict) -> bool:
+        """
+        Writes scan results to a file.
+        """
+        def generate_filename(target_host: str) -> str:
+            now = datetime.now()
+
+            # Format the timestamp for the filename
+            timestamp_part = now.strftime("%Y-%m-%d_%H-%M-%S")
+
+            return f"{timestamp_part}_scan_results_for_{target_host}"
+
+        # Determine the file path
+        file_path = self.output_file_path
+
+        # If the user passed 'auto_generate' or no value for -o, generate a filename
+        if file_path == 'auto_generate' or file_path is None:
+            # Base directory for output files
+            base_dir = "port-scanner_results"
+
+            # File extension
+            file_extension = ".log"
+
+            # Ensure the base directory exists
+            if not os.path.exists(base_dir):
+                try:
+                    os.makedirs(base_dir, exist_ok=True)
+                except Exception as e:
+                    print(f"[!] Error creating output directory '{base_dir}': {e}")
+                    return False
+            file_path = os.path.join(base_dir, f"{generate_filename(data['host'])}{file_extension}")
+
+        # Write content to the file
+        try:
+            with open(file_path, "w") as f:
+                for line in data["content"]:
+                    f.write(line + "\n") # Write each line followed by a newline
+            print(f"[*] Scan results saved to: {file_path}")
+            return True
+        except Exception as e:
+            print(f"[!] Error writing results to file {file_path}: {e}")
+            return False
+        
+        # Return True if the file was written successfully
+        return True

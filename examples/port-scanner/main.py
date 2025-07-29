@@ -25,11 +25,14 @@ def main():
     # Add an argument for the verbose
     parser.add_argument("-v", "--verbose", action='store_true', help="Print the status of every port as it's scanned (default: False)")
 
+    # Add an argument for the output file path
+    parser.add_argument("-o", "--output", type=str, nargs='?', const='auto_generate', default=None, help="Specify an output file to save results. If not provided, a timestamped file will be created.")
+
     # Parse the arguments
     args = parser.parse_args()
 
     # Create an instance of PortScanner with the target host
-    scanner = PortScanner(args.target, args.verbose)
+    scanner = PortScanner(args.target, args.verbose, args.output)
 
     if not scanner.target_ip:
         # If target_ip is an empty string, it means resolution failed

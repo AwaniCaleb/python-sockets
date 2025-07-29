@@ -1,0 +1,21 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Port Scanner Debugger: /eg/port-scanner/main.py (args)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/port-scanner/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-t", "example.com",
+                "-ep", "500",
+                "-o",
+            ]
+        }
+    ]
+}
