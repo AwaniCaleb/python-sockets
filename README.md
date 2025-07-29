@@ -81,7 +81,7 @@ To run an example:
 
 1.  Navigate to the specific example directory:
     ```bash
-    cd examples/core/
+    cd examples/tcp/
     ```
 2.  Open two separate terminal windows.
 3.  In the first terminal, start the server:
@@ -103,7 +103,7 @@ To run an example:
 ├── venv/
 ├── .env
 ├── examples/
-│   └── core/
+│   └── tcp/
 │       ├── client.py
 │       ├── main.py
 │       └── server.py
