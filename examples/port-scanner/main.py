@@ -22,11 +22,14 @@ def main():
     # Add an argument for the max connections
     parser.add_argument("-mc", "--max-connections", type=int, default=100, help="The maximum number of concurrent connections  (default: 100)")
 
+    # Add an argument for the verbose
+    parser.add_argument("-v", "--verbose", action='store_true', help="Print the status of every port as it's scanned (default: False)")
+
     # Parse the arguments
     args = parser.parse_args()
 
     # Create an instance of PortScanner with the target host
-    scanner = PortScanner(args.target)
+    scanner = PortScanner(args.target, args.verbose)
 
     if not scanner.target_ip:
         # If target_ip is an empty string, it means resolution failed

@@ -3,18 +3,22 @@ import threading
 
 
 class PortScanner:
-    def __init__(self, target_host: str = "localhost"):
+    def __init__(self, target_host: str = "localhost", verbose:bool = False):
         """
         Initializes the PortScanner with a target host.
         """
+        # Resolve the hostname to an IP address.
         self.target_ip = self.resolve_host(
             target_host
-        )  # Resolve the hostname to an IP address.
+        )
 
         # Define the default range of ports to scan.
         # These can be modified when the PortScanner object is created or before scanning.
         self.start_port = 1
-        self.end_port = 1024  # Common ports often fall within this range
+        self.end_port = 1024
+
+        # Verbose mode determines whether to print detailed output during the scan.
+        self.verbose = verbose
 
         # List to hold open ports found during the scan.
         self.open_ports: list[dict] = []
@@ -97,6 +101,10 @@ class PortScanner:
             else:
                 # Port is closed or filtered
                 output["error"] = result
+
+                # Print port if verbose is enabled
+                if self.verbose:
+                    print(f"Closed/Filtered port found: {port}")
 
         except socket.gaierror:
             # Hostname resolution failed during connect_ex or earlier
