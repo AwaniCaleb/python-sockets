@@ -1,249 +1,296 @@
-import socket, threading, os
-
+import socket
+import threading
+import os
 from datetime import datetime
 
 
 class PortScanner:
-    def __init__(self, target_host: str = "localhost", verbose:bool = False, output_file_path: str = None):
+    """
+    A multi-threaded TCP Port Scanner.
+
+    This class provides functionality to scan a range of TCP ports on a target host,
+    identify open ports, grab banners from open services, and optionally output
+    results to a file. It uses threading and a semaphore to manage concurrent connections.
+    """
+
+    def __init__(self, target_host: str = "localhost", verbose: bool = False, output_file_path: str = None):
         """
-        Initializes the PortScanner with a target host.
+        Initializes the PortScanner with a target host and scan settings.
+
+        :param target_host: The hostname or IP address of the target. Defaults to "localhost".
+        :param verbose: If True, prints status for every port scanned (open, closed, filtered).
+        :param output_file_path: The path to a file where results should be saved.
+                                 Can be None (no output file), a specific path, or 'auto_generate'
+                                 to trigger automatic filename generation.
         """
+        # Store the provided target host string.
         self.target_host = target_host
 
-        # Resolve the hostname to an IP address.
+        # Resolve the hostname to an IP address immediately upon initialization.
+        # This handles DNS resolution upfront and stores the IP.
         self.target_ip = self.resolve_host(self.target_host)
 
-        # Define the default range of ports to scan.
-        # These can be modified when the PortScanner object is created or before scanning.
+        # Default range of ports to scan. These can be overridden via main.py arguments.
         self.start_port = 1
         self.end_port = 1024
 
-        # Verbose mode determines whether to print detailed output during the scan.
+        # Verbose mode flag. True means more detailed real-time output.
         self.verbose = verbose
 
-        # File path for output; None if not specified
-        self.output_file_path = output_file_path 
+        # Store the provided output file path. This will be None, a path string, or 'auto_generate'.
+        self.output_file_path = output_file_path
 
-        # List to hold open ports found during the scan.
+        # List to store information about open ports. Each item will be a dictionary
+        # containing the port number and any grabbed banner.
         self.open_ports: list[dict] = []
 
-        # Maximum number of concurrent connections (threads) to use during scanning.
+        # Maximum number of concurrent connections/threads.
+        # This is the initial default, but can be updated by main.py's arguments.
         self.max_connections = 100
 
-        # This semaphore limits the number of concurrent threads to avoid overwhelming the system or network.
+        # A threading.Semaphore limits the number of active threads.
+        # It's initialized here with a default, but critically, it's re-initialized
+        # in main.py after potentially receiving a new max_connections value.
         self.scan_semaphore = threading.Semaphore(self.max_connections)
 
-        # A lock to ensure thread-safe access to the open_ports list.
+        # A threading.Lock is used to protect 'self.open_ports' when multiple threads
+        # try to add data to it simultaneously, preventing race conditions.
         self.open_ports_lock = threading.Lock()
 
     def resolve_host(self, host: str) -> str:
         """
-        Resolves a hostname to an IP address.
+        Resolves a given hostname to its corresponding IP address.
+
+        :param host: The hostname (e.g., "google.com") or IP address (e.g., "8.8.8.8").
+        :return: The resolved IP address as a string, or an empty string if resolution fails.
         """
         try:
-            # Use socket.gethostbyname() to resolve the hostname to an IP address.
+            # socket.gethostbyname() performs the DNS lookup.
             ip_address = socket.gethostbyname(host)
             return ip_address
         except socket.gaierror:
-            print(f"Could not resolve hostname {host}. Exiting.")
-            return ""
+            # socket.gaierror is raised for address-related errors (e.g., unknown host).
+            print(f"[!] Error: Could not resolve hostname '{host}'.")
+            return "" # Return empty string to signal failure.
 
     def scan_port(self, port: int) -> dict:
         """
-        Scans a single port on the target IP address, attempts to grab a banner if open.
+        Scans a single TCP port on the target IP address.
+        Attempts to establish a connection and grab a banner if the port is open.
+
+        :param port: The port number to scan.
+        :return: A dictionary containing 'port', 'status', and 'data' (banner if open).
         """
-
+        # Acquire a semaphore. This decrements the semaphore counter.
+        # If the counter is zero (meaning max_connections threads are already running),
+        # this call will block until a semaphore is released by another thread.
         self.scan_semaphore.acquire()
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(1)  # Timeout for connection attempt
 
-        output = {
-            "state": False,
-            "port": port,
-            "error": None,
-            "data": None,
-        }  # Initialize output
+        # Create a new socket for each connection attempt.
+        # It's crucial to create a new socket because a closed socket cannot be reused for a new connection.
+        # AF_INET specifies IPv4, SOCK_STREAM specifies TCP.
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # Initialize output dictionary with default values.
+        output = {"port": port, "status": "closed", "banner": None}
 
         try:
+            # Set a timeout for the connection attempt.
+            # This prevents the scanner from hanging indefinitely on filtered or non-responsive ports.
+            s.settimeout(1) # 1 second timeout for connection.
+
+            # Attempt to connect to the target IP and port.
+            # connect_ex returns 0 if the connection is successful (port is open).
+            # It returns an error code (non-zero) if the connection fails (port is closed/filtered).
             result = s.connect_ex((self.target_ip, port))
 
-            # If the port is open...
             if result == 0:
-                # Print port if verbose is enabled
-                if self.verbose:
-                    print("Open port found:", port)
+                # Port is open.
+                output["status"] = "open"
                 
-                output["state"] = True
-
-                banner = "No banner received"  # Default banner if none found or error
-
-                # Set a shorter timeout specifically for the recv operation
-                s.settimeout(0.5)
-
+                # --- Banner Grabbing Attempt ---
                 try:
+                    # Set a shorter timeout specifically for receiving data (banner).
+                    # This prevents hanging if a service connects but sends no data.
+                    s.settimeout(0.5) # 0.5 seconds timeout for receiving.
+
+                    # Attempt to receive data (banner) from the open port.
+                    # 1024 is the buffer size (max bytes to receive).
                     port_data_bytes = s.recv(1024)
-                    # Decode the received data dnd remove leading/trailing whitespace/newlines
+
+                    # Decode the received bytes into a UTF-8 string.
+                    # 'errors="ignore"' handles any decoding errors gracefully, preventing crashes.
                     banner = port_data_bytes.decode("utf-8", errors="ignore").strip()
-                    if not banner:  # If decoding results in an empty string
+
+                    # If no banner data was actually received (e.g., an empty string),
+                    # assign a default message.
+                    if not banner:
                         banner = "No banner received"
+                    output["banner"] = banner
+
                 except socket.timeout:
-                    # Specific handler for recv timeout
-                    banner = "No banner received (timeout)"
+                    # Catch timeout specifically if the service connects but sends no data within the timeout.
+                    output["banner"] = "No banner (timeout)"
                 except socket.error as e:
-                    # General socket error during recv
-                    banner = f"Error receiving banner: {e}"
-
-                output["data"] = banner
-
-                # Acquire the lock to safely modify the open_ports list.
+                    # Catch other socket errors during banner grabbing (e.g., connection reset).
+                    output["banner"] = f"No banner (error: {e})"
+                
+                # --- Thread-Safe Update of Open Ports List ---
+                # Acquire the lock before modifying the shared 'open_ports' list.
+                # This ensures that only one thread modifies the list at a time, preventing data corruption.
                 self.open_ports_lock.acquire()
-
                 try:
-                    # Use 'banner' key for clarity
-                    self.open_ports.append({"port": port, "banner": banner})
+                    # Add the open port information (port number and banner) to the list.
+                    self.open_ports.append({"port": port, "banner": output["banner"]})
                 finally:
-                    # Ensure the lock is released after modifying the list.
+                    # Release the lock after the list modification is complete.
+                    # 'finally' ensures the lock is always released, even if an error occurs.
                     self.open_ports_lock.release()
 
-            # Port is closed or filtered
-            else:
-                output["error"] = result
+                # Print status for open ports (always printed, regardless of verbose mode).
+                print(f"Port {port} is OPEN. Banner: {output['banner']}")
 
-                # Print port if verbose is enabled
+            else:
+                # Port is closed or filtered.
+                # Only print this status if verbose mode is enabled.
                 if self.verbose:
-                    print(f"Closed/Filtered port found: {port}")
+                    print(f"Port {port} is CLOSED (Error Code: {result})")
 
         except socket.gaierror:
-            # Hostname resolution failed during connect_ex or earlier
-            output["error"] = "Hostname resolution failed"
+            # This error is typically caught by resolve_host, but included here for robustness.
+            # It means the hostname could not be resolved at this stage.
+            if self.verbose:
+                print(f"[!] Hostname resolution error during scan for port {port}.")
         except socket.error as e:
-            # Other socket-related errors during connect_ex
-            output["error"] = str(e)
+            # Catches other general socket-related errors (e.g., network unreachable, connection refused).
+            if self.verbose:
+                print(f"[!] Socket error for port {port}: {e}")
         finally:
+            # Always close the socket.
+            # This releases the system resources used by the socket.
             s.close()
+            # Release the semaphore. This increments the semaphore counter, allowing
+            # another waiting thread to acquire it and start its scan.
             self.scan_semaphore.release()
-            return output
+            return output # Return the output dictionary for potential future use.
 
     def scan_range(self):
         """
-        Scans a range of ports from `self.start_port` to `self.end_port` (inclusive)
-        on the target IP address, using threads for concurrency.
+        Orchestrates the scanning of a range of ports using multiple threads.
+        It starts threads for each port, waits for them to complete,
+        then prints and optionally saves the results.
         """
         # Create an iterable range of port numbers.
-        # The range function's end is exclusive, so we add 1 to include self.end_port.
+        # The 'range' function's end is exclusive, so I add 1 to include 'self.end_port'.
         port_range = range(self.start_port, self.end_port + 1)
 
-        print(
-            f"\n[*] Starting scan on {self.target_ip} from port {self.start_port} to {self.end_port}..."
-        )
+        print(f"\n[*] Starting scan on {self.target_ip} from port {self.start_port} to {self.end_port}...")
 
-        # Initialize a list to hold the thread objects.
+        # List to keep track of all the thread objects created.
         all_threads: list[threading.Thread] = []
 
         try:
             # Iterate through each port in the defined range.
             for port in port_range:
-                # Acquire the semaphore before starting a new thread to ensure we don't exceed max_connections.
-                # self.scan_semaphore.acquire() # Already called in scan_port method
-
                 # Create a new thread for each port scan.
-                # The 'target' is the function to be executed by the thread (self.scan_port).
-                # The 'args' is a tuple of arguments to pass to the target function (the current 'port').
+                # 'target' is the function the thread will execute (self.scan_port).
+                # 'args' is a tuple of arguments passed to the target function (the current 'port').
                 scan_thread = threading.Thread(target=self.scan_port, args=(port,))
-
-                # Start the thread, which will execute self.scan_port concurrently.
+                
+                # Start the thread, which will begin executing self.scan_port concurrently.
                 scan_thread.start()
 
-                # Append the thread to the list of threads for tracking.
+                # Add the newly started thread to our list for tracking.
                 all_threads.append(scan_thread)
 
+            # Wait for all threads to complete their execution.
+            # .join() on a thread blocks the main thread until that specific thread finishes.
+            # By joining all threads, I ensure that the main thread doesn't proceed to
+            # print results until all scanning is truly done.
             for thread in all_threads:
                 thread.join()
 
         except Exception as e:
             # Catch any unexpected errors that might occur during the thread creation or iteration.
-            print(f"Something went wrong during the port range scan: {e}")
+            print(f"[!] Something went wrong during the port range scan: {e}")
 
-        # Sort the list of open ports by their port number for better readability.
+        # Sort the list of open ports by their port number for better readability in the output.
+        # The 'key=lambda x: x['port']' sorts based on the 'port' key within each dictionary.
         self.open_ports.sort(key=lambda x: x['port'])
 
-        # 
+        # After all threads have completed, print the final summary of results.
         output_lines = []
-        output_lines.append(f"\n[*] Scan complete on {self.target_ip}. Found {len(self.open_ports)} open ports:")
+        output_lines.append(f"[*] Scan complete on {self.target_ip}. Found {len(self.open_ports)} open ports:")
 
         if self.open_ports:
+            # If open ports were found, format and add each one to output_lines.
             for open_port in self.open_ports:
-                # Format the output line for each open port found.
                 line = f"Port {open_port['port']} is open. Banner: {open_port['banner']}"
-
-                # Print the line if verbose mode is enabled.
-                if self.verbose:
-                    print(line)
-
-                # Append the line to the output lines list for later writing to file.
+                print(line) # Print to console regardless of output file option
                 output_lines.append(line)
         else:
-            # If no open ports were found, print a message indicating this.
+            # If no open ports were found in the specified range.
             line = f"No open ports found from {self.start_port} to {self.end_port}."
-
-            # Print the line if verbose mode is enabled.
-            if self.verbose:
-                print(line)
-
-            # Append the line to the output lines list for later writing to file.
+            print(line) # Print to console
             output_lines.append(line)
 
-        # Write to file if output_file_path is provided
+        # Write to file if an output path was provided.
+        # This check determines if the user requested file output.
         if self.output_file_path:
-            # If the user provided an output file path, write the results to that file.
-            make_file = self.output_file({"host": self.target_host, "content": output_lines})
-
-            # If the file was not created successfully, print an error message.
-            if not make_file:
-                print("[!] Error writing results to file. Exiting scan.")
+            # Call the helper method to write the collected output lines to a file.
+            self.output_file({"host": self.target_host, "content": output_lines})
 
     def output_file(self, data: dict) -> bool:
         """
-        Writes scan results to a file.
+        Handles writing the scan results to a file.
+        It can use a user-specified path or generate a timestamped one.
+
+        :param data: A dictionary containing 'host' (target hostname) and 'content' (list of output strings).
+        :return: True if the file was successfully written, False otherwise.
         """
         def generate_filename(target_host: str) -> str:
+            """
+            Generates a unique, timestamped filename for scan results.
+            """
             now = datetime.now()
-
-            # Format the timestamp for the filename
+            # Format the date and time including seconds for more uniqueness.
             timestamp_part = now.strftime("%Y-%m-%d_%H-%M-%S")
-
+            # Combine with the target host to create a descriptive filename.
             return f"{timestamp_part}_scan_results_for_{target_host}"
 
-        # Determine the file path
+        # Determine the final file path for writing.
         file_path = self.output_file_path
 
-        # If the user passed 'auto_generate' or no value for -o, generate a filename
+        # If the user passed '-o' without a value, or didn't provide `-o` at all,
+        # 'file_path' will be 'auto_generate' or None. In these cases, a generate a filename.
         if file_path == 'auto_generate' or file_path is None:
-            # Base directory for output files
+            # Define the base directory where auto-generated files will be stored.
             base_dir = "port-scanner_results"
+            file_extension = ".log" # Standard log file extension.
 
-            # File extension
-            file_extension = ".log"
-
-            # Ensure the base directory exists
+            # Ensure the base directory exists. If it doesn't, create it.
+            # 'exist_ok=True' prevents an error if the directory already exists.
             if not os.path.exists(base_dir):
                 try:
                     os.makedirs(base_dir, exist_ok=True)
                 except Exception as e:
                     print(f"[!] Error creating output directory '{base_dir}': {e}")
-                    return False
+                    return False # Indicate failure to create directory.
+            # Construct the full file path for the auto-generated file.
             file_path = os.path.join(base_dir, f"{generate_filename(data['host'])}{file_extension}")
 
-        # Write content to the file
+        # Attempt to write the content to the determined file_path.
         try:
+            # Open the file in write mode ('w'). This will create the file if it doesn't exist,
+            # or overwrite it if it does.
             with open(file_path, "w") as f:
+                # Write each line of content, ensuring a newline character is added
+                # to separate lines correctly in the file.
                 for line in data["content"]:
-                    f.write(line + "\n") # Write each line followed by a newline
-            print(f"[*] Scan results saved to: {file_path}")
-            return True
+                    f.write(line + "\n")
+            print(f"[*] Scan results successfully saved to: {file_path}")
+            return True # Indicate success.
         except Exception as e:
-            print(f"[!] Error writing results to file {file_path}: {e}")
-            return False
-        
-        # Return True if the file was written successfully
-        return True
+            # Catch any errors during file writing (e.g., permission denied, invalid path).
+            print(f"[!] Error writing results to file '{file_path}': {e}")
+            return False # Indicate failure.
