@@ -46,3 +46,8 @@ class Server():
         except Exception as e:
             # Print an error message if sending fails
             print(f"[!] Error sending message: {e}")
+
+if __name__ == "__main__":
+    # Create a server instance and start it
+    server = Server()
+    server.start()
