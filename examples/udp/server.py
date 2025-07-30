@@ -28,4 +28,21 @@ class Server():
             data, address = self.socket.recvfrom(self.BUFFER_SIZE)
 
             # Decoding and printing
-            print(f"Received from {address}: {data.decode()}")
+            print(f"[i] Received from {address}: {data.decode()}")
+
+            # Echoing the received message back to the client
+            response = f"[i] We received your data: {data.decode()}"
+
+            # Sending the response back to the client
+            self.send(response, address)
+
+    def send(self, message:str, address:str):
+        try:
+            # Sending a message to the specified address
+            self.socket.sendto(message.encode(), address)
+
+            # Added a print statement for confirmation
+            print(f"[i] Sent to {address}: {message}")
+        except Exception as e:
+            # Print an error message if sending fails
+            print(f"[!] Error sending message: {e}")
