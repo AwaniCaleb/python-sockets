@@ -45,7 +45,8 @@ if __name__ == "__main__":
         "Hello, Server!",
         "How are you?",
         "This is a test message.",
-        "Goodbye!"
+        "Goodbye!",
+        "!exit"
     ]
 
     # Send each message and wait for a response

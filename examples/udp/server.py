@@ -18,23 +18,47 @@ class Server():
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.bind((self.HOST, self.PORT))
 
+        # Set the server to running state
+        self.running = True
+
     def start(self):
         # Added a print statement for confirmation
         print(f"UDP Server listening on {self.HOST}:{self.PORT}")
 
-        # Main loop to listen for incoming messages
-        while True:
-            # Receiving data from the client
-            data, address = self.socket.recvfrom(self.BUFFER_SIZE)
+        try:
+            # Main loop to listen for incoming messages
+            while self.running:
+                # Receiving data from the client
+                data, address = self.socket.recvfrom(self.BUFFER_SIZE)
 
-            # Decoding and printing
-            print(f"[i] Received from {address}: {data.decode()}")
+                # Decoding and printing
+                print(f"[i] Received from {address}: {data.decode()}")
 
-            # Echoing the received message back to the client
-            response = f"[i] We received your data: {data.decode()}"
+                # Decode the received data
+                data = data.decode()
 
-            # Sending the response back to the client
-            self.send(response, address)
+                # Check if the received data is a command to stop the server
+                if data.lower() in ["!exit", "!quit", "!stop", "!close", "!shutdown"]:
+                    self.stop()
+                    break
+
+                # Echoing the received message back to the client
+                response = f"[i] We received your data: {data}"
+
+                # Sending the response back to the client
+                self.send(response, address)
+        except Exception as e:
+            print(f"[!] Error: {e}")
+        finally:
+            # Close the socket when done
+            self.socket.close()
+
+            print("[i] Server closed.")
+
+    def stop(self):
+        """Stop the server."""
+        self.running = False
+        print("[i] Stopping the server...")
 
     def send(self, message:str, address:str):
         try:
