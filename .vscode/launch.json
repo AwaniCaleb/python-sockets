@@ -16,6 +16,20 @@
                 "-ep", "500",
                 "-o",
             ]
-        }
+        },
+        {
+            "name": "UDP DDos Debugger: /eg/udp-ddos/main.py (args)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/udp-ddos/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-th", "example.com",
+                "-tp", "80",
+                "-c", "50",
+                "-s"
+            ]
+        },
     ]
 }

