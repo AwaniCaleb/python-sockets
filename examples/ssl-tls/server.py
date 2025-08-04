@@ -1,3 +1,5 @@
+# Comments by GitHub Copilot and Gemini
+
 import ssl
 import socket
 import threading # Hopefully I'd use this later
@@ -15,6 +17,32 @@ class Server():
 
         # The secure socket will be stored here after wrapping later
         self.secure_socket = None
+
+    def handle_client(self, connection: ssl.SSLSocket, connection_addr):
+        """This function will handle communication with a single client."""
+
+        print(f"New thread started for {connection_addr}")
+
+        # Use a 'with' statement to automatically close the connection when we are done.
+        with connection:
+            # This inner loop handles communication with a single client.
+            while True:
+                # Receive up to 1024 bytes of data from the client.
+                # This will block until data is received.
+                data = connection.recv(1024)
+
+                # If no data is received, it means the client has disconnected.
+                if not data:
+                    print(f"Client {connection_addr} disconnected.")
+                    break
+
+                # Decode the data and print it for our server's logs.
+                print(f"Received data from {connection_addr}: {data.decode('utf-8')}")
+
+                # Echo the exact same data back to the client.
+                connection.sendall(data)
+        
+        print(f"Thread for {connection_addr} finished.")
 
     def start(self):
         # Bind the insecure socket to the specified address and port
@@ -46,24 +74,11 @@ class Server():
 
             print(f"Accepted connection from {connection_addr}")
 
-            # Use a 'with' statement to automatically close the connection when we are done.
-            with connection:
-                # This inner loop handles communication with a single client.
-                while True:
-                    # Receive up to 1024 bytes of data from the client.
-                    # This will block until data is received.
-                    data = connection.recv(1024)
+            # Create a new thread to handle this client
+            client_thread = threading.Thread(target=self.handle_client, args=(connection, connection_addr))
 
-                    # If no data is received, it means the client has disconnected.
-                    if not data:
-                        print(f"Client {connection_addr} disconnected.")
-                        break
-
-                    # Decode the data and print it for our server's logs.
-                    print(f"Received data from {connection_addr}: {data.decode('utf-8')}")
-
-                    # Echo the exact same data back to the client.
-                    connection.sendall(data)
+            # Start the thread
+            client_thread.start()
 
 
 if __name__ == "__main__":
