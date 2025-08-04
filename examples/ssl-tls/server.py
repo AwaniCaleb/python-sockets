@@ -45,7 +45,26 @@ class Server():
             connection, connection_addr = self.secure_socket.accept()
 
             print(f"Accepted connection from {connection_addr}")
-            pass
+
+            # Use a 'with' statement to automatically close the connection when we are done.
+            with connection:
+                # This inner loop handles communication with a single client.
+                while True:
+                    # Receive up to 1024 bytes of data from the client.
+                    # This will block until data is received.
+                    data = connection.recv(1024)
+
+                    # If no data is received, it means the client has disconnected.
+                    if not data:
+                        print(f"Client {connection_addr} disconnected.")
+                        break
+
+                    # Decode the data and print it for our server's logs.
+                    print(f"Received data from {connection_addr}: {data.decode('utf-8')}")
+
+                    # Echo the exact same data back to the client.
+                    connection.sendall(data)
+
 
 if __name__ == "__main__":
     server = Server()
