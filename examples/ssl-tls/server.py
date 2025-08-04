@@ -41,6 +41,10 @@ class Server():
 
         # Continuously accept new client connections as long as we are running.
         while self.is_running:
+            # Accept incoming connections
+            connection, connection_addr = self.secure_socket.accept()
+
+            print(f"Accepted connection from {connection_addr}")
             pass
 
 if __name__ == "__main__":
