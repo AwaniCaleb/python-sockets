@@ -68,6 +68,8 @@ class Flooder():
         Starts a spoofed UDP flood.
         It can either target a single port or randomize ports for each packet.
         """
+        print("DEBUG: Entered start_spoofed method.")
+
         message_to_send = message if message is not None else self._default_message
         
         while self.running and (packet_count == -1 or self.packets_sent < packet_count):
@@ -87,7 +89,7 @@ class Flooder():
             packet = ip_layer / udp_layer / message_to_send
 
             # Send the packet over the wire
-            scapy_send(packet, verbose=0)
+            scapy_send(packet, verbose=1)
             
             with self.packet_lock:
                 self.packets_sent += 1
@@ -98,6 +100,8 @@ class Flooder():
                 time.sleep(0.00001)
 
     def start_threaded(self, flood_type: Literal["default", "spoofed"] = "default", packet_count: int = -1, message: bytes = None, randomize_ports: bool = False):
+        print("DEBUG: Entered start_threaded method.")
+
         self.packets_sent = 0
 
         if flood_type == "default":
