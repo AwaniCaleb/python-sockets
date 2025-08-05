@@ -6,7 +6,7 @@ import threading # Hopefully I'd use this later
 
 class Server():
     # Define constants for the server's host and port
-    HOST = socket.gethostbyname(socket.gethostname())
+    HOST = 'localhost'
     PORT = 9999
     ADDR = (HOST, PORT)
 
