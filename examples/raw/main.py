@@ -54,6 +54,29 @@ class Main():
         
         return ip_header
 
+    def create_tcp_header(self, source_port: int, dest_port: int, sequence_number: int, ack_number: int) -> bytes:
+        """Create a TCP header for the packet."""
+        # TCP header fields in network byte order
+        source_port = source_port  # Source port - H (2 bytes/16 bits)
+        dest_port = dest_port  # Destination port - H (2 bytes/16 bits)
+        sequence_number = sequence_number  # Sequence number - L (4 bytes/32 bits)
+        ack_number = ack_number  # Acknowledgment number - L (4 bytes/32 bits)
+        # TCP header flags and options
+        offset_reserved_flags = 80 # Data offset (5 * 4 = 20 bytes), reserved (0), flags (0x02 for SYN) - H
+        window_size = 5840
+        tcp_checksum = 0
+        urgent_pointer = 0
+
+        tcp_header = struct.pack(
+            "!HHLLHHHH",
+            source_port, dest_port,
+            sequence_number, ack_number,
+            offset_reserved_flags, window_size,
+            tcp_checksum, urgent_pointer
+        )
+
+        return tcp_header
+
     def calculate_checksum(self, header: bytes) -> int:
         """
         Calculates the IP header checksum.
