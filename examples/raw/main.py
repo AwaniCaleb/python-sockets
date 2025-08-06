@@ -29,13 +29,26 @@ class Main():
         source_ip = socket.inet_aton(source_address) # Convert source address to binary format - 4s
         dest_ip = socket.inet_aton(dest_address) # Convert destination address to binary format - 4s
         
-        # Calculate the total length of the IP header
-        ip_header = struct.pack(
+        # Pack the header with the checksum set to 0.
+        ip_header_no_checksum = struct.pack(
             "!BHHHBBH4s4s",
             version_ihl, total_length,
             identification, fragment_offset,
             time_to_live, protocol,
             header_checksum, source_ip,
+            dest_ip
+        )
+        
+        # Calculate the checksum for the IP header.
+        ip_header_checksum = self.calculate_checksum(ip_header_no_checksum)
+        
+        # Repack the header with the correct checksum.
+        ip_header = struct.pack(
+            "!BHHHBBH4s4s",
+            version_ihl, total_length,
+            identification, fragment_offset,
+            time_to_live, protocol,
+            ip_header_checksum, source_ip,
             dest_ip
         )
         
