@@ -40,7 +40,7 @@ class Main():
         )
         
         # Calculate the checksum for the IP header.
-        ip_header_checksum = self.calculate_checksum(ip_header_no_checksum)
+        ip_header_checksum = self.calculate_ip_checksum(ip_header_no_checksum)
         
         # Repack the header with the correct checksum.
         ip_header = struct.pack(
@@ -77,7 +77,7 @@ class Main():
 
         return tcp_header
 
-    def calculate_checksum(self, header: bytes) -> int:
+    def calculate_ip_checksum(self, header: bytes) -> int:
         """
         Calculates the IP header checksum.
 
@@ -111,3 +111,23 @@ class Main():
         checksum = ~checksum & 0xFFFF
         
         return checksum
+    
+    def calculate_tcp_checksum(self, header: bytes) -> int:
+        pass
+
+    def create_pseudo_header(self, source_address: str, dest_address: str, protocol: int, tcp_length: int) -> bytes:
+        """Create a pseudo header for TCP checksum calculation."""
+        # Pseudo header fields in network byte order
+        source_ip = socket.inet_aton(source_address) # 4s
+        dest_ip = socket.inet_aton(dest_address) # 4s
+        protocol = protocol # Protocol number (6 for TCP) - B
+        tcp_length = tcp_length # Length of TCP header and data - H
+
+        # Pack the pseudo header.
+        pseudo_header = struct.pack(
+            "!4s4sBH",
+            source_ip, dest_ip,
+            protocol, tcp_length
+        )
+
+        return pseudo_header
