@@ -112,8 +112,40 @@ class Main():
         
         return checksum
     
-    def calculate_tcp_checksum(self, header: bytes) -> int:
-        pass
+    def calculate_tcp_checksum(self, tcp_header: bytes, pseudo_header: bytes, user_data: bytes) -> int:
+        """
+        Calculates the TCP checksum using the pseudo-header, TCP header, and data.
+        """
+        # Combine the headers and data.
+        checksum_data = pseudo_header + tcp_header + user_data
+        
+        # Pad with a null byte if the length is odd.
+        if len(checksum_data) % 2 != 0:
+            checksum_data += b'\x00'
+
+        checksum_sum = 0
+        
+        # Run the checksum algorithm.
+        for i in range(0, len(checksum_data), 2):
+            # Extract 2 bytes at a time.
+            chunk = checksum_data[i:i+2]
+            # Unpack the chunk as a 16-bit unsigned integer.
+            if len(chunk) == 2:
+                value = struct.unpack("!H", chunk)[0]  
+            else:
+                # If the chunk is only 1 byte, pad it with a zero byte.
+                value = struct.unpack("!H", chunk + b'\x00')[0]
+            # Add the value to the checksum sum.
+            checksum_sum += value          
+
+        # Handle overflow
+        while (checksum_sum >> 16) > 0:
+            checksum_sum = (checksum_sum & 0xFFFF) + (checksum_sum >> 16)
+
+        # Take the one's complement
+        final_checksum = ~checksum_sum & 0xFFFF
+        
+        return final_checksum
 
     def create_pseudo_header(self, source_address: str, dest_address: str, protocol: int, tcp_length: int) -> bytes:
         """Create a pseudo header for TCP checksum calculation."""
