@@ -233,5 +233,6 @@ if __name__ == '__main__':
     # Create an instance of our class
     packet_sender = Main()
 
-    # Call the send_packet method to assemble and send the packet
-    packet_sender.send_packet(source_address, dest_address, source_port, dest_port, message)
+    if packet_sender.socket:
+        # Call the send_packet method to assemble and send the packet
+        packet_sender.send_packet(source_address, dest_address, source_port, dest_port, message)
