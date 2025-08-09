@@ -21,9 +21,9 @@ class Main():
             # socket.AF_INET: I am using the IPv4 protocol.
             # socket.SOCK_RAW: I am creating a raw socket, which gives us
             #                  full control over the packet headers.
-            # socket.IPPROTO_RAW: This tells the operating system that I will
-            #                     be providing our own IP header.
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            # socket.IPPROTO_IP: I tell Windows to build the IP header for us.
+            #                    On Linux, I would use socket.IPPROTO_TCP for TCP packets.
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
             print("Socket created successfully.")
         except socket.error as e:
             print(f"Socket could not be created. Error: {e}")
@@ -222,3 +222,16 @@ class Main():
             print("Packet sent successfully!")
         except Exception as e:
             print(f"Error sending packet: {e}")
+
+if __name__ == '__main__':
+    source_address = "127.0.0.1"
+    dest_address = "127.0.0.1"
+    source_port = 12345
+    dest_port = 80
+    message = "Hello, raw socket!"
+
+    # Create an instance of our class
+    packet_sender = Main()
+
+    # Call the send_packet method to assemble and send the packet
+    packet_sender.send_packet(source_address, dest_address, source_port, dest_port, message)
