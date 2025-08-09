@@ -69,6 +69,7 @@ class Main():
         """
         # Define the values for each field in the IP header
         version_ihl = 69 # Version 4, IHL (Internet Header Length) 5 (20 bytes)
+        tos = 0 # Type of Service field - B
         total_length = 0 # This is a placeholder; I'll update it later
         identification = 54321
         fragment_offset = 0
@@ -82,12 +83,12 @@ class Main():
         
         # Pack the header initially with a checksum of 0.
         ip_header_no_checksum = struct.pack(
-            "!BHHHBBH4s4s", # The format string matching the variables
-            version_ihl, total_length,
-            identification, fragment_offset,
-            time_to_live, protocol,
-            header_checksum, source_ip,
-            dest_ip
+            "!BBHHHBBH4s4s", # The format string matching the variables
+            version_ihl, tos,
+            total_length, identification,
+            fragment_offset, time_to_live,
+            protocol, header_checksum,
+            source_ip, dest_ip
         )
         
         # Calculate the correct checksum using the header with a zeroed-out checksum.
@@ -95,8 +96,8 @@ class Main():
         
         # Pack the header a second time with the correct checksum value.
         ip_header = struct.pack(
-            "!BHHHBBH4s4s",
-            version_ihl, total_length,
+            "!BBHHHBBH4s4s",
+            version_ihl, tos, total_length,
             identification, fragment_offset,
             time_to_live, protocol,
             calculated_checksum, source_ip,
