@@ -180,42 +180,120 @@ class Main():
         final_checksum = ~checksum_sum & 0xFFFF
         
         return final_checksum
+    
+    def create_icmp_header(self, type_code: int, code: int, id: int, seq: int, checksum: int = 0) -> bytes:
+        """
+        Creates an ICMP header.
+        This is a simple ICMP header for echo requests (ping).
+        """
+        # The format string '!BBHHH' means:
+        # B = 1 byte, H = 2 bytes, L = 4 bytes, 4s = 4-byte string.
+        # Type and code are 1 byte each, checksum is 2 bytes, and ID and sequence are 2 bytes each.
 
-    def send_packet(self, source_address: str, dest_address: str, source_port: int, dest_port: int, message: str) -> None:
+        icmp_type = type_code if type_code is not None else 8  # Default to Echo Request (8)
+        icmp_code = code if code is not None else 0  # Default to no specific code
+        icmp_checksum = checksum  # Placeholder for now
+        icmp_id = id if id is not None else 0  # Default ID
+        icmp_seq = seq if seq is not None else 1  # Default sequence number
+        
+        struct_format = "!BBHHH"
+
+        icmp_header = struct.pack(
+            struct_format,
+            icmp_type, icmp_code,
+            icmp_checksum, icmp_id, icmp_seq
+        )
+
+        return icmp_header
+
+    def create_and_pack_ip_header(self, source_address: str, dest_address: str, protocol: int, total_length: int) -> bytes:
+        """"""
+        # Define the values for each field in the IP header
+        version_ihl = 69 # Version 4, IHL (Internet Header Length) 5 (20 bytes)
+        tos = 0
+        identification = 54321
+        fragment_offset = 0
+        time_to_live = 255
+        header_checksum = 0 # I must set this to 0 when I calculate the checksum
+
+        # Convert human-readable IP addresses to 4-byte binary format
+        source_ip = socket.inet_aton(source_address)
+        dest_ip = socket.inet_aton(dest_address)
+
+        # Pack the header initially with a checksum of 0.
+        ip_header_no_checksum = struct.pack(
+            "!BBHHHBBH4s4s",
+            version_ihl, tos,
+            total_length, identification,
+            fragment_offset, time_to_live,
+            protocol, header_checksum,
+            source_ip, dest_ip
+        )
+        
+        # Calculate the correct checksum using the header with a zeroed-out checksum.
+        calculated_checksum = self.calculate_checksum(ip_header_no_checksum)
+        
+        # Pack the header a second time with the correct checksum value.
+        ip_header = struct.pack(
+            "!BBHHHBBH4s4s",
+            version_ihl, tos, total_length,
+            identification, fragment_offset,
+            time_to_live, protocol,
+            calculated_checksum, source_ip,
+            dest_ip
+        )
+        
+        return ip_header
+
+    def send_packet(self, source_address: str, dest_address: str, source_port: int, dest_port: int, message: str, packet_type: str = "tcp") -> None:
         """
         Assembles and sends a complete raw packet.
         This function brings all the previous functions together.
         """
         # The data I want to send
         user_data = message.encode('utf-8')
-        tcp_length = 20 + len(user_data) # TCP header is 20 bytes long
-        
-        # Create the IP header
-        ip_header = self.create_ip_header(source_address, dest_address)
-        
-        # Create a TCP header with the checksum set to 0.
-        # I need this version to calculate the correct checksum.
-        tcp_header_no_checksum = self.create_tcp_header(source_port, dest_port, 0, 0)
-        
-        # Create the pseudo-header
-        pseudo_header = self.create_pseudo_header(source_address, dest_address, 6, tcp_length)
-        
-        # Calculate the TCP checksum
-        tcp_checksum = self.calculate_tcp_checksum(tcp_header_no_checksum, pseudo_header, user_data)
-        
-        # Repack the TCP header with the correct checksum
-        # I create the final TCP header here, with the correct checksum value
-        tcp_header = struct.pack(
-            "!HHLLHHHH",
-            source_port, dest_port,
-            0, 0, # Using 0 for sequence and ack for this simple example
-            80, 5840,
-            tcp_checksum, 0
-        )
-        
-        # Combine all the pieces to form the final packet
-        # Order is crucial: IP header -> TCP header -> user data
-        final_packet = ip_header + tcp_header + user_data
+        header = b''
+        protocol = 0
+        total_packet_length = 0
+
+        if packet_type == "icmp":
+            # Create an ICMP header with a checksum of 0
+            icmp_id = 12345
+            icmp_seq = 1
+            icmp_header_no_checksum = self.create_icmp_header(8, 0, icmp_id, icmp_seq)
+            
+            # Calculate the ICMP checksum
+            checksum_data = icmp_header_no_checksum + user_data
+            icmp_checksum = self.calculate_checksum(checksum_data)
+
+            # Repack the ICMP header with the correct checksum
+            header = struct.pack("!BBHHH", 8, 0, icmp_checksum, icmp_id, icmp_seq)
+            protocol = 1 # ICMP protocol
+            total_packet_length = 20 + len(header) + len(user_data)
+            
+        elif packet_type == "tcp":
+            tcp_length = 20 + len(user_data)
+            
+            # Create TCP header without checksum for calculation
+            tcp_header_no_checksum = self.create_tcp_header(source_port, dest_port, 0, 0)
+            
+            # Create pseudo-header and calculate TCP checksum
+            pseudo_header = self.create_pseudo_header(source_address, dest_address, 6, tcp_length)
+            tcp_checksum = self.calculate_tcp_checksum(tcp_header_no_checksum, pseudo_header, user_data)
+            
+            # Repack TCP header with the correct checksum
+            header = struct.pack("!HHLLHHHH", source_port, dest_port, 0, 0, 80, 5840, tcp_checksum, 0)
+            protocol = 6 # TCP protocol
+            total_packet_length = 20 + len(header) + len(user_data)
+            
+        else:
+            raise ValueError("Unsupported packet type. Use 'tcp' or 'icmp'.")
+
+        # Now create the IP header with the correct protocol and length
+        ip_header = self.create_and_pack_ip_header(source_address, dest_address, protocol, total_packet_length)
+
+        # Combine all pieces
+        final_packet = ip_header + header + user_data
         
         # Send the packet!
         try:
