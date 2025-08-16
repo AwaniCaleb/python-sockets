@@ -1,5 +1,5 @@
 import struct
-from .PacketHeader import PacketHeader
+from PacketHeader import PacketHeader
 
 class IcmpHeader(PacketHeader):
     """

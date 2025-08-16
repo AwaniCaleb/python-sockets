@@ -1,10 +1,8 @@
-import struct
 import socket
 
-from .IpHeader import IpHeader
-from .PacketHeader import PacketHeader
-from .ImcpHeader import IcmpHeader
-from .TcpHeader import TcpHeader
+from IpHeader import IpHeader
+from ImcpHeader import IcmpHeader
+from TcpHeader import TcpHeader
 
 class Main:
     def __init__(self, interface: str = "lo"):

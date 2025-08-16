@@ -1,6 +1,6 @@
 import socket
 import struct
-from .PacketHeader import PacketHeader
+from PacketHeader import PacketHeader
 
 class IpHeader(PacketHeader):
     """
