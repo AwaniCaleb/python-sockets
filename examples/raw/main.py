@@ -1,7 +1,7 @@
 import socket
 
 from IpHeader import IpHeader
-from ImcpHeader import IcmpHeader
+from IcmpHeader import IcmpHeader
 from TcpHeader import TcpHeader
 
 class Main:
