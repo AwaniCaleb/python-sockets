@@ -4,6 +4,7 @@ import socket
 from .IpHeader import IpHeader
 from .PacketHeader import PacketHeader
 from .ImcpHeader import IcmpHeader
+from .TcpHeader import TcpHeader
 
 class Main:
     def __init__(self, interface: str = "lo"):
@@ -16,58 +17,7 @@ class Main:
             print(f"Socket could not be created. Error: {e}")
             self.socket = None
 
-    def create_tcp_header(self, source_port: int, dest_port: int, sequence_number: int, acknowledgment_number: int,) -> bytes:
-        offset_res_flags = 80
-        window_size = 5840
-        tcp_checksum = 0
-        urgent_pointer = 0
-
-        tcp_header = struct.pack(
-            "!HHLLHHHH",
-            source_port, dest_port,
-            sequence_number, acknowledgment_number,
-            offset_res_flags, window_size,
-            tcp_checksum, urgent_pointer,
-        )
-
-        return tcp_header
-
-    def create_pseudo_header(self, source_ip: str, dest_ip: str, protocol: int, tcp_length: int) -> bytes:
-        # Create a pseudo header for TCP checksum calculation.
-        source_ip_binary = socket.inet_aton(source_ip)
-        dest_ip_binary = socket.inet_aton(dest_ip)
-        zero = 0
-
-        pseudo_header = struct.pack(
-            "!4s4sBH",
-            source_ip_binary, dest_ip_binary,
-            protocol, tcp_length
-        )
-
-        return pseudo_header
-
-    def calculate_tcp_checksum(self, tcp_header: bytes, pseudo_header: bytes, user_data: bytes) -> int:
-        """"""
-        # Calculate the TCP checksum using the pseudo header, TCP header, and user data.
-        checksum_data = pseudo_header + tcp_header + user_data
-
-        if len(checksum_data) % 2 != 0:
-            # If the length is odd, pad with a zero byte
-            checksum_data += b"\x00"
-        checksum_sum = 0
-        for i in range(0, len(checksum_data), 2):
-            # Unpack each 2-byte chunk as an unsigned short
-            checksum_sum += struct.unpack("!H", checksum_data[i : i + 2])[0]
-        while (checksum_sum >> 16) > 0:
-            # Fold the checksum sum to 16 bits
-            checksum_sum = (checksum_sum & 0xFFFF) + (checksum_sum >> 16)
-
-        # Finalize the checksum by inverting the bits
-        final_checksum = ~checksum_sum & 0xFFFF
-
-        return final_checksum
-
-    def send_packet(self, source_address: str, dest_address: str, message: str, packet_type: str = "icmp", ) -> None:
+    def send_packet(self, source_address: str, dest_address: str, message: str, packet_type: str = "icmp", source_port: int = 12345, dest_port: int = 80,) -> None:
         user_data = message.encode("utf-8")
         header_payload = b""
         protocol = 0
@@ -77,19 +27,9 @@ class Main:
             header_payload = icmp_header_obj.pack()
             protocol = 1
         elif packet_type == "tcp":
-            tcp_length = 20 + len(user_data)
-        
-            # Create TCP header without checksum for calculation
-            tcp_header_no_checksum = self.create_tcp_header(source_port, dest_port, 0, 0)
-            
-            # Create pseudo-header and calculate TCP checksum
-            pseudo_header = self.create_pseudo_header(source_address, dest_address, 6, tcp_length)
-            tcp_checksum = self.calculate_tcp_checksum(tcp_header_no_checksum, pseudo_header, user_data)
-            
-            # Repack TCP header with the correct checksum
-            header_payload = struct.pack("!HHLLHHHH", source_port, dest_port, 0, 0, 80, 5840, tcp_checksum, 0)
-            protocol = 6 # TCP protocol
-            total_packet_length = 20 + len(header_payload) + len(user_data)
+            tcp_header_obj = TcpHeader(source_port, dest_port)
+            header_payload = tcp_header_obj.pack(source_address, dest_address, user_data)
+            protocol = 6
             pass
         else:
             raise ValueError("Unsupported packet type. Use 'tcp' or 'icmp'.")
@@ -119,11 +59,19 @@ if __name__ == "__main__":
     packet_sender = Main()
 
     if packet_sender.socket:
+        print("\n--- Sending ICMP Packet ---")
         packet_sender.send_packet(
             source_address,
             dest_address,
-            source_port,
-            dest_port,
             message,
             packet_type="icmp",
+        )
+        print("\n--- Sending TCP Packet ---")
+        packet_sender.send_packet(
+            source_address,
+            dest_address,
+            message,
+            packet_type="tcp",
+            source_port=source_port,
+            dest_port=dest_port
         )
