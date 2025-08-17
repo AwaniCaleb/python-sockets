@@ -1,4 +1,4 @@
-from scapy.all import IP, ICMP, sniff
+from scapy.all import IP, ICMP, sniff, TCP, UDP
 
 
 class PacketSniffer:
@@ -32,13 +32,28 @@ class PacketSniffer:
     
     def process_packet(self, packet):
         """This method processes each packet and prints the source and destination IP addresses if available."""
+
+        default_value = "Unknown"
+        src_ip, dst_ip, src_port, dst_port = [default_value] * 4
+
+        # Check if the packet has IP layer
         if IP in packet:
+            # Extract source and destination IP addresses
             src_ip = packet[IP].src
             dst_ip = packet[IP].dst
+        
+        if TCP in packet:
+            # Check if the packet has a source and destination port
+            src_port = packet[TCP].sport if hasattr(packet[TCP], 'sport') else None
+            dst_port = packet[TCP].dport if hasattr(packet[TCP], 'dport') else None
+        elif UDP in packet:
+            # Check if the packet has a source and destination port
+            src_port = packet[UDP].sport if hasattr(packet[UDP], 'sport') else None
+            dst_port = packet[UDP].dport if hasattr(packet[UDP], 'dport') else None
 
-            print(f"Packet from {src_ip} to {dst_ip}")
+        print(f"Packet from {src_ip}:{src_port} to {dst_ip}:{dst_port}")
 
 if __name__ == "__main__":
     # Example usage
     sniffer = PacketSniffer()
-    sniffer.start_sniffing(count=100)
+    sniffer.start_sniffing(count=1)
