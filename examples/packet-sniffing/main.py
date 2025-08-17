@@ -23,12 +23,20 @@ class PacketSniffer:
         print(f"Starting to sniff {count} packets on interface: {self.interface if self.interface else 'default'}")
 
         # Start sniffing packets
-        packet_list = sniff(iface=self.interface, count=count, prn=lambda x: x.summary(), store=True)
+        packet_list = sniff(iface=self.interface, count=count, prn=lambda x: self.process_packet(x), store=True)
 
         # Print the summary of the sniffed packets
         print(f"Sniffed {len(packet_list)} packets:")
 
         return packet_list
+    
+    def process_packet(self, packet):
+        """This method processes each packet and prints the source and destination IP addresses if available."""
+        if IP in packet:
+            src_ip = packet[IP].src
+            dst_ip = packet[IP].dst
+
+            print(f"Packet from {src_ip} to {dst_ip}")
 
 if __name__ == "__main__":
     # Example usage
