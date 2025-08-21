@@ -1,4 +1,4 @@
-from scapy.all import IP, ICMP, sniff, TCP, UDP
+from scapy.all import IP, ICMP, sniff, TCP, UDP, DNSQR
 
 
 class PacketSniffer:
@@ -50,8 +50,14 @@ class PacketSniffer:
             # Check if the packet has a source and destination port
             src_port = packet[UDP].sport if hasattr(packet[UDP], 'sport') else None
             dst_port = packet[UDP].dport if hasattr(packet[UDP], 'dport') else None
-
+        
         print(f"Packet from {src_ip}:{src_port} to {dst_ip}:{dst_port}")
+
+        # Check if the packet has a DNS query layer
+        if DNSQR in packet:
+            # Let me know if it does lol
+            print(f"DNS Query detected from {packet[DNSQR].qname.decode()}")
+
 
 if __name__ == "__main__":
     # Example usage
