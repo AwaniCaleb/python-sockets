@@ -16,14 +16,14 @@ class PacketSniffer:
             print("PacketSniffer initialized without a specific interface.")
         
 
-    def start_sniffing(self, count=5):
+    def start_sniffing(self, count: int = 5, filter: str = None):
         """
         This method starts sniffing packets on the specified interface.
         """
         print(f"Starting to sniff {count} packets on interface: {self.interface if self.interface else 'default'}")
 
         # Start sniffing packets
-        packet_list = sniff(iface=self.interface, count=count, prn=lambda x: self.process_packet(x), store=True)
+        packet_list = sniff(iface=self.interface, count=count, prn=lambda x: self.process_packet(x), store=True, filter= filter if filter is not None else "")
 
         # Print the summary of the sniffed packets
         print(f"Sniffed {len(packet_list)} packets:")
@@ -56,4 +56,4 @@ class PacketSniffer:
 if __name__ == "__main__":
     # Example usage
     sniffer = PacketSniffer()
-    sniffer.start_sniffing(count=1)
+    sniffer.start_sniffing(count=1, filter="udp port 53")
