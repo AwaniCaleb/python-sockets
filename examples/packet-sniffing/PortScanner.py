@@ -18,4 +18,9 @@ class PortScanner():
 
         response = sr1(syn_packet, timeout=1)
 
-        
+        if not response: 
+            print(f"Oops! Possible timeout error")
+        elif response[TCP].flags == "SA":
+            print(f"{self.target}/{self.port} is open")
+        elif response[TCP].flags == "RA":
+            print(f"{self.target}/{self.port} is closed")
