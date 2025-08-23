@@ -5,7 +5,7 @@ class PortScanner():
     DEFAULT_TARGET = socket.gethostbyname(socket.gethostname())
     DEFAULT_PORT = 80
 
-    def __init__(self, target: str, port: int):
+    def __init__(self, target: str = None, port: int = None):
         self.socket = None
         self.target = target if target else self.DEFAULT_TARGET
         self.port = port if port else self.DEFAULT_PORT
@@ -16,7 +16,9 @@ class PortScanner():
 
         syn_packet = target_ip / tcp_packet
 
-        response = sr1(syn_packet, timeout=1)
+        print(f"Sending packet to {self.target}/{self.port}")
+
+        response = sr1(syn_packet, timeout=5)
 
         if not response: 
             print(f"Oops! Possible timeout error")
