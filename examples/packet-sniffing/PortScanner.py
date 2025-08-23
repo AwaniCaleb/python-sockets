@@ -1,5 +1,5 @@
 import socket
-from scapy.all import IP, TCP
+from scapy.all import IP, TCP, sr1
 
 class PortScanner():
     DEFAULT_TARGET = socket.gethostbyname(socket.gethostname())
@@ -15,3 +15,7 @@ class PortScanner():
         tcp_packet = TCP(dport=self.port, flags="S")
 
         syn_packet = target_ip / tcp_packet
+
+        response = sr1(syn_packet, timeout=1)
+
+        
