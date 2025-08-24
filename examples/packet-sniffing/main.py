@@ -1,4 +1,4 @@
-import sys
+import sys, os
 from PacketSniffer import PacketSniffer
 from PortScanner import PortScanner
 
@@ -11,11 +11,11 @@ def main():
     # Note: This is a simple check and might not be foolproof on all OSes.
     # A more robust solution might use `os.geteuid()` on Unix-like systems.
     # For this educational repo, a simple check is sufficient.
-    # if sys.platform != "win32" and os.geteuid() != 0:
-    #     print("\n[!] This script may require root privileges to run correctly.")
-    #     print("Please try running with 'sudo'.\n")
+    if sys.platform != "win32" and os.geteuid() != 0:
+        print("\n[!] This script may require root privileges to run correctly.")
+        print("Please try running with 'sudo'.\n")
         # Depending on strictness, you might want to exit here.
-        # sys.exit(1)
+        sys.exit(1)
 
     while True:
         print("\n--- Scapy Examples Runner ---")
